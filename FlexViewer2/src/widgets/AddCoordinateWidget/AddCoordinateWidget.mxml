@@ -1,0 +1,429 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+///////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2010-2011 Esri. All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//    http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+///////////////////////////////////////////////////////////////////////////
+-->
+<viewer:BaseWidget xmlns:fx="http://ns.adobe.com/mxml/2009"
+				   xmlns:s="library://ns.adobe.com/flex/spark"
+				   xmlns:mx="library://ns.adobe.com/flex/mx"
+				   xmlns:viewer="com.esri.viewer.*"
+				   xmlns:esri="http://www.esri.com/2008/ags"
+				   xmlns:customRenderer="customRenderer.*"
+				   xmlns:components1="com.hillelcoren.components.*"
+				   widgetConfigLoaded="init()">
+	
+	
+		<fx:Style> 
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		
+		mx|Alert{
+			borderColor: red;
+			backgroundColor: yellow;
+			dropShadowVisible: true;
+			chromeColor: red;
+			titleStyleName: alertTitle;
+			messageStyleName: alertMessage;
+			buttonStyleName: alertButton;
+		}
+		.alertTitle{
+			fontSize: 20;
+			fontWeight: bold;
+			color: yellow;
+		}
+		.alertMessage {
+			fontWeight: bold;
+			color: red;
+		}
+		.alertButton {
+			color: yellow;
+		}
+		
+		.headerStyleName
+		{
+			color:#FFFFFF; 
+		}
+	</fx:Style>
+	<fx:Metadata>
+		[ResourceBundle("ViewerStrings")]
+	</fx:Metadata>
+	
+	<viewer:states>
+		<s:State name="accueil"/>
+		<s:State name="searchTab"/>
+		<s:State name="searchAttTab"/>
+	</viewer:states>
+	
+	<viewer:transitions>
+		<s:Transition autoReverse="true" toState="*">
+			<s:Fade id="fade"/>
+		</s:Transition>
+	</viewer:transitions>
+	
+	
+	<fx:Script>
+		<![CDATA[
+			import com.esri.ags.Graphic;
+			import com.esri.ags.SpatialReference;
+			import com.esri.ags.events.DrawEvent;
+			import com.esri.ags.events.FeatureLayerEvent;
+			import com.esri.ags.events.GeometryServiceEvent;
+			import com.esri.ags.events.LayerEvent;
+			import com.esri.ags.geometry.Extent;
+			import com.esri.ags.geometry.MapPoint;
+			import com.esri.ags.layers.FeatureLayer;
+			import com.esri.ags.layers.Layer;
+			import com.esri.ags.tasks.Geoprocessor;
+			import com.esri.ags.tasks.supportClasses.ProjectParameters;
+			import com.esri.ags.tasks.supportClasses.Query;
+			import com.esri.viewer.AppEvent;
+			import com.fnicollet.toaster.message.ubuntu.ToastMessageUbuntu;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.controls.textClasses.TextRange;
+			import mx.managers.ToolTipManager;
+			import mx.rpc.AsyncResponder;
+			import mx.rpc.events.FaultEvent;
+			import mx.utils.ObjectUtil;
+			
+			[Bindable] public var selectionLayers:Array = [];
+			[Bindable] public var selectionMethod:String;
+			
+			[Bindable]
+			public var dpValueAC:ArrayCollection = new ArrayCollection();
+			
+			[Bindable] private var configSelectionLayers:Array;
+			
+			[Bindable] private var targetLayer:FeatureLayer;
+			
+			[Bindable] private var queryFields:Array = [];
+			
+			[Bindable] var shareResults:Boolean;
+			
+			private var queryLayer:FeatureLayer;
+			
+			[Bindable]
+			private var _dataProvider:ArrayCollection;
+			
+			[Bindable]
+			private var geometryServiceUrl:String;
+			
+			[Bindable]
+			private var projector:Projector;
+			
+			private var LocaX:Number;
+			private var LocaY:Number;
+			
+			[Bindable]
+			private var dataprovider:Array;
+			
+			private var configFeatureLayers:Array;
+			
+			private const ICON_URL:String = "assets/images/";
+			
+			public var project:ProjectParameters = new ProjectParameters();
+			
+//			private function widgetOpenedHandler(event:Event):void
+//			{
+//				AppEvent.addListener(AppEvent.LANUGUAGE_CHANGED,reloadLang);
+//			}
+			
+			private function init():void
+			{//AppEvent.addListener(AppEvent.LANUGUAGE_CHANGED,reloadLang);
+				
+				if (configXML){
+					
+					
+					dataprovider = [];
+					var lyrDom:XMLList = configXML..value;
+					for (var i:int = 0; i < lyrDom.length(); i++){
+						dataprovider[i] = lyrDom[i];
+					}
+					configFeatureLayers = [];
+					var lyrList:XMLList = configXML..layer;
+					geometryServiceUrl = configXML.geometryServiceURL;
+					for (var i:int = 0; i < lyrList.length(); i++){
+						var lyrName:String = lyrList[i].name;
+//						var lyrFldSmb:String = lyrList[i].fieldSymb;
+//						var lyrDefVal:String = lyrList[i].defVal;
+//						var lyrFldName:String = lyrList[i].fieldName;
+//						var lyrFldProj:String = lyrList[i].projID;
+//						var lyrFldNameProj:String = lyrList[i].projIDName;
+						var lyrWKIDProj:String = lyrList[i].wkid;
+						var lyrLocaXfld:String = lyrList[i].locaxfld;
+						var lyrLocaYfld:String = lyrList[i].locayfld;
+												
+						
+						var tooltipLayer:Object = {
+							layer: lyrName,
+//							name: lyrFldName,
+//							projName : lyrFldNameProj,
+//							projId : lyrFldProj,
+							wkidProj : lyrWKIDProj,
+							locaXfld : lyrLocaXfld,
+							locaYfld : lyrLocaYfld
+//							fldSmb:lyrFldSmb,
+//							defVal:lyrDefVal
+							
+						};
+						configFeatureLayers.push(tooltipLayer);
+					}
+				}
+			}
+			
+			function reloadLang(evt:AppEvent)
+			{
+				//				MyEdit.baseWidget.widgetTitle = resourceManager.getString('ViewerStrings','widgetTitle');
+				
+			}
+			
+			public function numericSortByField(fieldName:String):Function
+			{
+				return function(obj1:Object, obj2:Object):int
+				{
+					var virRegExp:RegExp = /[,]/gi;
+					
+					var string1:String = (obj1[fieldName] == null) ? "" : (obj1[fieldName]).toString();
+					var string2:String = (obj2[fieldName] == null) ? "" : (obj2[fieldName]).toString();
+					
+					if(string1.search(',') > -1)
+					{
+						string1 = string1.replace(virRegExp,".");
+					}
+						
+					else if((string2.search(virRegExp)>-1))
+					{
+						string2 = string2.replace(virRegExp,".");
+					}
+					var value1:Number = (isNaN(parseFloat(string1)) || string1 == null) ? 999999 : parseFloat(string1);
+					var value2:Number = (isNaN(parseFloat(string2)) || string2 == null) ? 999999 : parseFloat(string2);
+					
+					return ObjectUtil.numericCompare(value1, value2);
+				}
+			}
+			
+			private function widgetClosedHandler(event:Event):void
+			{
+				var ev:MouseEvent = new MouseEvent(MouseEvent.CLICK);
+				
+				map.infoWindow.hide();
+				
+			}   
+			
+			private function addToFeatureLayerHandler():void
+			{
+				if(lon.text == "" || lat.text=="")
+				{
+					Alert.show("Veuillez entrer des coordonnées SVP");
+				}
+				else
+				{
+					if((lon.text.split(",").length > 2)||(lat.text.split(",").length > 2))
+					{
+						Alert.show("Attention, il y a plusieurs séparateurs ici...");
+					}
+					else
+					{
+						if(lon.text.search(/[,]/) != -1)
+						{
+							lon.text = lon.text.replace(/[,]/, ".");
+						}
+						if(lat.text.search(/[,]/) != -1)
+						{
+							lat.text = lat.text.replace(/[,]/, ".");
+						}
+					}
+					
+					
+					if(isNaN(parseFloat(lon.text)) ||isNaN(parseFloat(lat.text)))
+					{
+						Alert.show("Veuillez entrer des coordonnées correctes SVP");
+					}
+					else if((lon.text.split(".").length > 2)||(lat.text.split(".").length > 2))
+					{
+						Alert.show("Attention, il y a plusieurs séparateurs ici...");
+					}
+					else
+					{
+						var wkid:Number = configFeatureLayers[0].wkidProj;
+//						var formPoint:MapPoint = new MapPoint(parseFloat(lon.text), parseFloat(lat.text),map.spatialReference);
+						var formPointToProject:MapPoint = new MapPoint(parseFloat(lon.text), parseFloat(lat.text), new SpatialReference(wkid));
+						LocaX = parseFloat(lon.text);LocaY = parseFloat(lat.text);
+						
+//						Alert.show(wkid+"\n"+formPointToProject);
+						
+						var coordPt:Array = new Array();
+						coordPt[0] = formPointToProject;
+						
+						var project:ProjectParameters = new ProjectParameters();
+						project.geometries = coordPt;
+						project.outSpatialReference = new SpatialReference(102100);
+						
+						myGeometryService.project(project);
+						
+//						addPoint(formPointToProject);
+					}
+				}
+			}
+			
+			private function addPoint(mp:MapPoint):void
+			{
+				if(mp!=null)
+				{
+//					projector = new Projector(geometryServiceURL);
+//					projector.projectPoint(mp, 4326,function(event:GeometryServiceEvent):void{
+						
+//						var mPoint:MapPoint = event.result[0] as MapPoint;
+						
+					
+						for each (var layer:Layer in map.layers)
+						{
+							if (layer is FeatureLayer)
+							{
+								var fl:FeatureLayer = layer as FeatureLayer;
+								
+								for(var l:int=0; l<configFeatureLayers.length; l++)
+								{
+									if(fl.id == configFeatureLayers[l].layer)
+									{
+										Alert.show(fl.layerDetails.types+"");
+										var attributes:Object = {};
+//										attributes[configFeatureLayers[l].fldSmb] = configFeatureLayers[l].defVal;
+//										if (configFeatureLayers[l].name != ""){attributes[configFeatureLayers[l].name] = "0_Coord";}
+//										if (configFeatureLayers[l].projName != ""){attributes[configFeatureLayers[l].projName] = configFeatureLayers[l].projId;}
+										
+										if (configFeatureLayers[l].locaXfld != ""){attributes[configFeatureLayers[l].locaXfld] = LocaX;}
+										if (configFeatureLayers[l].locaYfld != ""){attributes[configFeatureLayers[l].locaYfld] = LocaY;}
+										
+										var feature:Graphic = new Graphic(mp, null, attributes);
+//										var feature:Graphic = new Graphic(mp, null, null);
+										var add:Array = [ feature ];
+										
+										fl.addEventListener(FeatureLayerEvent.EDITS_COMPLETE, myFeatureLayer_editsCompleteHandler);
+//										fl.applyEdits(add,null,null);
+									}
+								}
+							}
+						}
+//					configFeatureLayers[0].addEventListener(FeatureLayerEvent.EDITS_COMPLETE,myFeatureLayer_editsCompleteHandler);
+//					configFeatureLayers[0].applyEdits(add,null,null);   name: lyrFldName,	projId : lyrFldProj,
+					
+					//featLayer.addEventListener(FeatureLayerEvent.EDITS_COMPLETE,myFeatureLayer_editsCompleteHandler);
+						map.centerAt(mp);
+//					}
+				}
+				else
+				{
+					Alert.show("Can't add this","Warning");
+				}
+			}
+			
+			private function myFeatureLayer_editsCompleteHandler(event:FeatureLayerEvent):void
+			{
+				
+//				event.featureLayer.clearSelection();
+				for each (var layer:Layer in map.layers)
+				{
+					if (layer is FeatureLayer)
+					{
+						layer.refresh();
+					}
+				}
+//				event.featureLayer.refresh()
+				
+			}
+			
+			/**
+			 * Ecouteur de l'évènement <b>GeometryServiceEvent.PROJECT_COMPLETE</b> du service de géométrie
+			 */
+			protected function geometryService_projectCompleteHandler(event:GeometryServiceEvent):void
+			{
+				/*if (isNaN(event.result[0].x){
+				Alert.show("Impossible de faire la projection. Verifiez  les coordonnées en entrée!");}
+				}	
+				else {*/
+				
+				//				Alert.show(""+event.result[0].geometry,"");
+				
+				var coordPtProj:MapPoint= event.result[0] as MapPoint;
+				
+//				Alert.show(coordPtProj+"");
+				
+				addPoint(coordPtProj);
+				
+//				var query:Query = new Query();
+//				query.geometry = extent;
+				
+//				featLayer.selectFeatures(query,FeatureLayer.SELECTION_NEW,new AsyncResponder(onSelectResult, onSelectFault, featLayer));
+//				featLayer.addEventListener(FeatureLayerEvent.SELECTION_COMPLETE,myFeatureLayer_selectionCompleteHandler);
+				
+//				myGraphicLayer.clear();
+				
+			}
+			
+			/**
+			 * Ecouteur de l'évènement <b>FaultEvent.FAULT</b> pour le service de géometrie
+			 */
+			protected function geometryService_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Impossible de faire la projection.");
+			}
+			
+		]]>
+		
+		
+	</fx:Script>
+	
+	
+	
+	<fx:Declarations>
+		<esri:GeometryService id="myGeometryService"
+							  url="http://tasks.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer"
+							  fault="geometryService_faultHandler(event)"
+							  projectComplete="geometryService_projectCompleteHandler(event)"/>		<!--	-->	
+		
+		<mx:SeriesInterpolate id="interpolateIn" duration="500" />
+	</fx:Declarations>
+	
+	<viewer:WidgetTemplate id="MyEdit" widgetTitle="" width="350" height="250"  closed="widgetClosedHandler(event)"
+						  >  <!--open="widgetOpenedHandler(event)"  map.infoWindowRenderersEnabled = true;   map.infoWindowRenderersEnabled = false;}-->
+			
+			<mx:VBox top="0">
+				
+				<mx:Label id="hello" top="10" text="{'\n'}"/>
+				<mx:Form id="addForm" width="100%" borderColor="0xffffff" borderStyle="solid"
+						 cornerRadius="20">
+					<mx:FormHeading label="Add a feature with Coordinates"/>
+					<!--<mx:FormHeading label="{resourceManager.getString('ViewerStrings','addCoordLabel')}"/>-->
+					<mx:FormItem label="X">
+						<s:TextInput id="lon"  prompt="Ex: -215083.975"/>
+					</mx:FormItem>
+					<mx:FormItem label="Y">
+						<s:TextInput id="lat" prompt="Ex: 4504594.951"/>
+					</mx:FormItem>
+					<mx:FormItem label="Type">
+						<mx:ComboBox id="typcbx" dataProvider="{dataprovider}"/>
+					</mx:FormItem>
+					<mx:FormItem>
+						<mx:Button id="addButton" label="Add a Feature"
+								   click="addToFeatureLayerHandler()"/><!--label="{resourceManager.getString('ViewerStrings','addCoordButtonLabel')}"-->
+					</mx:FormItem>
+				</mx:Form>
+			</mx:VBox>
+		
+	</viewer:WidgetTemplate>
+</viewer:BaseWidget>
+

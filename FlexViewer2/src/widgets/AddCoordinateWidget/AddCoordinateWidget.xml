@@ -1,0 +1,41 @@
+<?xml version="1.0" ?>
+<configuration>
+   <!-- 
+   ####################################################
+   # REQUIRED
+   #################################################### 
+   -->
+	<Layers>
+		<Layer>
+			<name>Hole In edition</name>
+		</Layer>
+	
+	
+	</Layers>
+   <!-- Geometry Service URL --> 
+   <geometryServiceURL>http://tasks.arcgisonline.com/ArcGIS/rest/services/Geometry/GeometryServer</geometryServiceURL>
+   <!-- GLOBAL DECIMAL PRECISION -->
+   <precision>4</precision>
+   
+      <!--
+   	Custom coordinate systems used to display in the drop downs.- comment/delete XML to remove functionality
+   	Get the WKID (Well Known ID) needed from the below sites.	
+   
+    Projected Coordinate Systems 
+    http://help.arcgis.com/en/arcgisserver/10.0/apis/rest/index.html?pcs.html
+	
+	Geographic Coordinate Systems 
+	http://help.arcgis.com/en/arcgisserver/10.0/apis/rest/index.html?gcs.html
+    -->
+   <coordinateSystems>
+		<coordinateSystem name="NAD 1983 UTM Zone 17" wkid="26917" decimals="4"/>
+		<coordinateSystem name="NAD 1927 UTM Zone 17" wkid="26717" decimals="4"/>
+		<coordinateSystem name="World Mercator" wkid="54004" decimals="4"/>
+		<coordinateSystem name="GCS WGS 1984 (Decimal Degrees)" wkid="4326" decimals=""/>
+	<!-- <coordinateSystem name="GCS WGS 1984 (Decimal Degrees)" wkid="4326" decimals="2"/> -->
+   </coordinateSystems>
+   
+	<!-- Zoom To Coordinate Scale -->
+	<zoomScale>5000</zoomScale>
+   
+</configuration>
